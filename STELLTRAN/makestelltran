@@ -1,0 +1,112 @@
+#This makefile goes in dirs Debug and Release (first level below STELLTRAN)
+SHELL   = /bin/sh
+MYHOME  = $(HOME)
+PRECOMP = cpp -traditional-cpp -E -P -C -DMACOSX -DNEED_BLAS -DNETCDF -DSILO_AVAI -DLHDF5 -DH5_USE_16_API -DNTCC -DBNORM -DDKES_OPT -DBEAMS3D_OPT -DJINV_OPT -DNEO_OPT -DTXPORT_OPT -DMPI_OPT -DDIAGNO_OPT  -DDKES_OPT  -DNEO_OPT  -DSKS 
+HOME_BIN= /Users/slazerso/bin
+BEAMS3D_DIR = ../../BEAMS3D
+LIB_BEAMS3D = libbeams3d.a
+BOOTSJ_DIR = ../../BOOTSJ
+LIB_BOOTSJ = libbootsj.a
+BOOZ_DIR = ../../BOOZ_XFORM
+LIB_BOOZ= libbooz.a
+GENE_DIR = 
+LIB_GENE = 
+COILOPTPP_DIR = 
+LIB_COILOPTPP = 
+VMEC_DIR= ../../VMEC2000
+LIB_VMEC= libvmec.a
+LIB_LINK= $(VMEC_DIR)/$(LOCTYPE)/$(LIB_VMEC)  \
+	$(BEAMS3D_DIR)/$(LOCTYPE)/$(LIB_BEAMS3D) \
+	$(BOOTSJ_DIR)/$(LOCTYPE)/$(LIB_BOOTSJ) \
+	$(BOOZ_DIR)/$(LOCTYPE)/$(LIB_BOOZ) \
+	$(HOME_BIN)/libstell.a -L/opt/local/lib -lopenblas -lscalapack     -lhdf5 -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran   -lnetcdf -lnetcdff  -lhdf5 -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -L/Users/slazerso/Sims_PPPL/STELLOPT/NTCC/MAC/lib -lpreact -lsigsub -laladdinsub -lpreact -lpspline -lportlib -lezcdf   
+LIB     = libstell.a
+LIB_DIR = ../../LIBSTELL
+COMPILE = /opt/local/bin/mpif90 
+COMPILE_FREE = /opt/local/bin/mpif90 -ffree-form -ffree-line-length-none -ffixed-line-length-none 
+FFILE   = '$*''.f'
+CFILE   = '$*''.c'
+F90FILE = '$*''.f90'
+LINK    = /opt/local/bin/mpif90 $(FLAGS) -o 
+MOD_PATH= -I/Users/slazerso/Sims_PPPL/STELLOPT/NTCC/MAC/mod  -I/opt/local/include  -I$(VMEC_DIR)/$(LOCTYPE) \
+	-I$(BEAMS3D_DIR)/$(LOCTYPE) \
+	-I$(BOOZ_DIR)/$(LOCTYPE) \
+	-I$(BOOTSJ_DIR)/$(LOCTYPE) \
+	-I
+SPATH   = ../Sources
+#Contains list of source files (.o) and dependencies
+DEPLIST = STELLTRAN.dep
+OBJLIST = ../ObjectList
+
+#Includes source files and dependency list
+include $(DEPLIST)
+include $(OBJLIST)
+VPATH = $(SPATH)
+
+.SUFFIXES :
+.SUFFIXES : .f .f90 .o
+xstelloptv2:  $(LIB) $(LIB_VMEC) $(LIB_BEAMS3D) $(LIB_BOOTSJ) $(LIB_BOOZ) $(ObjectFiles)
+	$(LINK) $@ $(ObjectFiles) $(LIB_LINK)
+	@rm $(VMEC_DIR)/$(LOCTYPE)/$(LIB_VMEC)
+	@rm $(BEAMS3D_DIR)/$(LOCTYPE)/$(LIB_BEAMS3D)
+	@rm $(BOOTSJ_DIR)/$(LOCTYPE)/$(LIB_BOOTSJ)
+	@rm $(BOOZ_DIR)/$(LOCTYPE)/$(LIB_BOOZ)
+#Compile object files defined in OBJLIST.
+.f.o :
+	@if grep -q '^!DEC\$$' $<; \
+      then \
+         awk -f $(HOME_BIN)/awk_cdir.awk $< > $(CFILE) ; \
+         echo '$(PRECOMP) $<'; $(PRECOMP) $(CFILE) $(FFILE); \
+         rm -f $(CFILE); echo '$(COMPILE) $(FLAGS) $(MOD_PATH).. -c $<'; \
+         $(COMPILE) $(FLAGS) $(MOD_PATH).. -c $(FFILE); \
+      elif grep -q '^#if' $<; \
+      then \
+         cp $< $(CFILE); \
+         echo '$(PRECOMP) $<'; $(PRECOMP) $(CFILE) $(FFILE); \
+         rm -f $(CFILE); echo '$(COMPILE) $(FLAGS) $(MOD_PATH).. -c $<'; \
+         $(COMPILE) $(FLAGS) $(MOD_PATH).. -c $(FFILE); \
+      else \
+         echo '$(COMPILE) $(FLAGS) $(MOD_PATH). -c $<'; \
+         $(COMPILE) $(FLAGS) $(MOD_PATH). -c $<; \
+      fi
+
+.f90.o :
+	@if grep -q '^!DEC\$$' $<; \
+      then \
+         awk -f $(HOME_BIN)/awk_cdir.awk $< > $(CFILE) ; \
+         echo '$(PRECOMP) $<'; $(PRECOMP) $(CFILE) $(F90FILE); \
+         rm -f $(CFILE); echo '$(COMPILE_FREE) $(FLAGS) $(MOD_PATH).. -c $<'; \
+        $(COMPILE_FREE) $(FLAGS) $(MOD_PATH).. -c $(F90FILE); \
+      elif grep -q '^#if' $<; \
+      then \
+         cp $< $(CFILE); \
+         echo '$(PRECOMP) $<'; $(PRECOMP) $(CFILE) $(F90FILE); \
+         rm -f $(CFILE); echo '$(COMPILE_FREE) $(FLAGS) $(MOD_PATH).. -c $<'; \
+        $(COMPILE_FREE) $(FLAGS) $(MOD_PATH).. -c $(F90FILE); \
+      else \
+         echo '$(COMPILE_FREE) $(FLAGS) $(MOD_PATH). -c $<'; \
+         $(COMPILE_FREE) $(FLAGS) $(MOD_PATH).. -c $<; \
+      fi
+      
+#Check that library files are current. 
+$(LIB) :
+	@cd $(LIB_DIR); make $(TYPE)
+
+clean:
+	- rm -f *.o *.mod
+
+#Construct vmec library. 
+$(LIB_VMEC) :
+	@cd $(VMEC_DIR); make $(TYPE); cd $(LOCTYPE); ar -cruv $(LIB_VMEC) *.o
+	
+#Construct beams3d library. 
+$(LIB_BEAMS3D) :
+	@cd $(BEAMS3D_DIR); make $(TYPE); cd $(LOCTYPE); ar -cruv $(LIB_BEAMS3D) *.o *.mod
+	
+#Construct bootsj library. 
+$(LIB_BOOTSJ) :
+	@cd $(BOOTSJ_DIR); make $(TYPE); cd $(LOCTYPE); ar -cruv $(LIB_BOOTSJ) *.o *.mod
+	
+#Construct boozer library. 
+$(LIB_BOOZ) :
+	@cd $(BOOZ_DIR); make $(TYPE); cd $(LOCTYPE); ar -cruv $(LIB_BOOZ) *.o *.mod
